@@ -2,6 +2,7 @@
 #include "fraction.h"
 #include<math.h>
 
+#ifndef _FUNCTIONS
 
 class Function {
 public:
@@ -18,6 +19,11 @@ public:
     }
 };
 
-const Function* Sin = new Function('\u0021', L"sin", 0, [](Fraction x) {return Fraction(tan(x));});
+const Function* Sin = new Function(L'\u00C0', L"sin", 0, [](Fraction x) {return Fraction(sin(x));});
+const Function* Cos = new Function(L'\u00C1', L"cos", 0, [](Fraction x) {return Fraction(cos(x));});
+const Function* Tan = new Function(L'\u00C2', L"tan", 0, [](Fraction x) {return Fraction(tan(x));});
 
-const Function* _Functionss[] = { Sin };
+const Function* _Functions[] = { Sin, Cos, Tan };
+
+#endif
+#define _FUNCTIONS

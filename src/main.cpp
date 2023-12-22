@@ -9,7 +9,7 @@
 #include <ftxui/util/ref.hpp>
 #include <ftxui/component/captured_mouse.hpp>
 #include <ftxui/component/screen_interactive.hpp>
-#include<unistd.h>
+#include <unistd.h>
 
 using namespace std;
 
@@ -33,7 +33,7 @@ vector<wchar_t> buttonLayout[]{
     {L'0',L'0',L'.',L'='}
 };
 vector<const Function*> functionLayout[]{
-    {Sin}
+    {Sin, Cos, Tan}
 };
 
 class InputComponent {
@@ -50,26 +50,23 @@ public:
 void gui() {
     using namespace ftxui;
     string exp = "";
+    // const wchar_t* exp = L"";
     wstring displayExp;
     Fraction previousResult;
     Fraction calcResult;
     const int BUTTON_WIDTH = 5;
     const int BUTTON_HEIGHT = 3;
-    const int SCREEN_WIDTH = 30;
+    const int SCREEN_WIDTH = 40;
     const int SCREEN_HEIGHT = 20;
 
     Ref<int> cursorPosition = 1000;
-    // InputComponent input_exp = InputComponent(Input({
-    //         .content = &exp,
-    //         .multiline = false,
-    //         .on_enter = [&]() {
-    //         previousResult = calcResult;
-    //         exp = "";
-    //         }
-    //     }));
     Component input_exp = Input({
         .content = &exp,
         .multiline = false,
+        .on_change = [&]() {
+            processExp();
+            calcResult = calcExp(CalcRequest(to_wstring(exp), previousResult));
+        },
         .on_enter = [&]() {
         previousResult = calcResult;
         exp = "";
@@ -80,11 +77,10 @@ void gui() {
     map<wchar_t, Component> stringButton;
     map<wchar_t, wstring> functionToDisplay;
 
-
-
     processExp = [&]() {
         displayExp = L"";
-        for (auto i : exp) {
+        wstring w_exp = to_wstring(exp);
+        for (auto i : w_exp) {
             if (functionToDisplay.find(i) != functionToDisplay.end()) {
                 displayExp += functionToDisplay[i];
             }
@@ -95,17 +91,10 @@ void gui() {
     auto addButton = [&](wchar_t c, function<void()> func = nullptr, wstring displayAs = L"") {
         wstring* s = new wstring(1, c);
         if (displayAs == L"")displayAs = *s;
-        stringButton[c] = Button(displayAs, [&, s, func]() {
-            if (func == nullptr) {
-                input_exp += s;
-            }
-            else {
-                func();
-            }
-            processExp();
-            }, ButtonOption::Border());
+        stringButton[c] = Button(displayAs, func == nullptr ? [&, s]() {input_exp += s;} : func, ButtonOption::Border());
         componentsList.push_back(stringButton[c]);
         };
+
 
     addButton(L'A', [&]() {
         exp = "";
@@ -197,8 +186,7 @@ void gui() {
 
         return window(text("Calculator"), vbox(
             previousResult == 0 ? hbox(text(displayExp)) : hbox(text(to_string(previousResult)), text(displayExp)),
-            // previousResult == 0 ? hbox(text(exp)) : hbox(text(to_string(previousResult)), text(exp)),
-            flexbox({ text(to_string(calcExp(CalcRequest(exp,previousResult)))) | color(Color::GrayLight) }, FlexboxConfig().Set(FlexboxConfig::JustifyContent::FlexEnd)),
+            flexbox({ text(to_string(calcResult)) | color(Color::GrayLight) }, FlexboxConfig().Set(FlexboxConfig::JustifyContent::FlexEnd)),
             separator(),
             hbox(vbox(*buttons), separator(), vbox(*functions))
         ));

@@ -1,27 +1,31 @@
 #include "operators.h"
-#include<stack>
-#include<map>
-#include<vector>
+#include <stack>
+#include <map>
+#include <vector>
 #include "myBitset.h"
+#include "functions.h"
 
 const int T_SIZE = 1e5 + 10;
 const int BITSET_SIZE = 128;
 const Operator* nullOperator = new Operator();
 
-std::map<char, const Operator*> charToOp;
+std::map<wchar_t, const Operator*> charToOp;
+std::map<wchar_t, const Function*> charToFunc;
 
 enum TYPE { Numbers, Operators, Brackets, Functions };
 
 class Node {
 public:
-    Node(TYPE t, Fraction n) :type(t), num(n), op(nullOperator), bracketType(false) {}
-    Node(TYPE t, const Operator* o) :type(t), num(Fraction(0, 1)), op(o), bracketType(false) {}
-    Node(TYPE t, bool b) :type(t), num(Fraction(0, 1)), op(nullOperator), bracketType(b) {}
-    Node() :type(Numbers), num(Fraction(0, 1)), op(nullOperator), bracketType(false) {}
+    Node(TYPE t, Fraction n) :type(t), num(n), op(nullOperator), bracketType(false), func() {}
+    Node(TYPE t, const Operator* o) :type(t), num(Fraction(0, 1)), op(o), bracketType(false), func() {}
+    Node(TYPE t, bool b) :type(t), num(Fraction(0, 1)), op(nullOperator), bracketType(b), func() {}
+    Node() :type(Numbers), num(Fraction(0, 1)), op(nullOperator), bracketType(false), func() {}
     TYPE type;
     Fraction num;
     const Operator* op;
     bool bracketType; //(True )False
+    const Function* func = nullptr;
+    bool funcFlag = false;
 };
 
 Node* T;
@@ -36,7 +40,7 @@ std::vector<std::pair<int, int>> bracketPair[50];
 std::map<myBitset<BITSET_SIZE>, int> treeNodeHash;
 int nodeCnt = 0;
 
-bool isOperator(char c) {
+bool isOperator(wchar_t c) {
     for (const Operator* op : _Operators) {
         if (c == op->operatorChar) {
             return true;
@@ -45,13 +49,25 @@ bool isOperator(char c) {
     return false;
 }
 
-bool isBracket(char c) {
+bool isFunction(wchar_t c) {
+    for (const Function* func : _Functions) {
+        if (c == func->functionChar) {
+            return true;
+        }
+    }
+    return false;
+}
+
+bool isBracket(wchar_t c) {
     return c == '(' || c == ')';
 }
 
 void init() {
     for (const Operator* op : _Operators) {
         charToOp[op->operatorChar] = op;
+    }
+    for (const Function* func : _Functions) {
+        charToFunc[func->functionChar] = func;
     }
 }
 
@@ -61,12 +77,12 @@ void initTree() {
     bracketPos = new int[T_SIZE] {};
 }
 
-bool splitExp(std::string exp, Fraction previousResult) {
+bool splitExp(std::wstring exp, Fraction previousResult) {
     int pos = 0;
     int expLen = exp.length();
     Fraction _num = Fraction(0, 1);
     bool flagNum = false;
-    char _c;
+    wchar_t _c;
     int cntBracket = 0;
     int cntPoint = 0;
     bool flagPoint = false;
@@ -74,6 +90,7 @@ bool splitExp(std::string exp, Fraction previousResult) {
     if (previousResult != 0)T[++cnt] = Node(Numbers, previousResult);
 
     std::stack<int> brackets;
+    std::stack<std::pair<int, const Function*>> functionStack;
     while (pos < expLen) {
         _c = exp[pos];
         if (isdigit(_c)) {
@@ -82,20 +99,36 @@ bool splitExp(std::string exp, Fraction previousResult) {
             if (flagPoint) {
                 cntPoint++;
             }
+            pos++;
+            continue;
         }
         if (_c == '.' && flagNum) {
             flagPoint = true;
+            pos++;
+            continue;
         }
         if (isOperator(_c)) {
-            if (flagNum)T[++cnt] = Node(Numbers, _num / pow(10, cntPoint));
+            if (flagNum) {
+                T[++cnt] = Node(Numbers, _num / pow(10, cntPoint));
+                if (!functionStack.empty()) {
+                    T[cnt].funcFlag = true;
+                    T[cnt].func = functionStack.top().second;
+                    functionStack.pop();
+                }
+            }
             T[++cnt] = Node(Operators, charToOp[_c]);
             _num = 0;
             flagNum = false;
             cntPoint = 0;
             flagPoint = false;
+            pos++;
+            continue;
         }
         if (isBracket(_c)) {
-            if (flagNum)T[++cnt] = Node(Numbers, _num / pow(10, cntPoint));
+            if (flagNum) {
+                T[++cnt] = Node(Numbers, _num / pow(10, cntPoint));
+
+            }
             T[++cnt] = Node(Brackets, _c == '(');
             _num = 0;
             flagNum = false;
@@ -105,6 +138,7 @@ bool splitExp(std::string exp, Fraction previousResult) {
                 brackets.push(cnt);
                 cntBracket++;
                 maxCntBracket = std::max(cntBracket, maxCntBracket);
+
             }
             if (_c == ')') {
                 if (brackets.empty()) {
@@ -115,10 +149,25 @@ bool splitExp(std::string exp, Fraction previousResult) {
                 brackets.pop();
                 cntBracket--;
             }
+            pos++;
+            continue;
         }
-        pos++;
+        if (isFunction(_c)) {
+            if (flagNum)T[++cnt] = Node(Numbers, _num / pow(10, cntPoint));
+            functionStack.push({ cntBracket,charToFunc[_c] });
+            // T[++cnt] = Node(Functions, charToFunc[_c]);
+            _num = 0;
+            flagNum = false;
+            cntPoint = 0;
+            flagPoint = false;
+            pos++;
+            continue;
+        }
     }
-    if (flagNum)T[++cnt] = Node(Numbers, _num / pow(10, cntPoint));
+    if (flagNum) {
+        T[++cnt] = Node(Numbers, _num / pow(10, cntPoint));
+
+    }
     if (!brackets.empty())return false;
 
     return true;
@@ -153,6 +202,7 @@ void buildCalcTree(int l, int r, myBitset<BITSET_SIZE> c) {
         }
     }
     for (int i = r;i >= l;i--) {
+        if (true) {}
         if (T[i].type == Brackets && !T[i].bracketType) {
             i = bracketPos[i];
             continue;
@@ -198,10 +248,17 @@ Fraction calcTree(myBitset<BITSET_SIZE> c) {
         return Fraction(0, 1);
     }
     if (T[Tree[treeNodeHash[c]].id].type == Numbers) {
-        return T[Tree[treeNodeHash[c]].id].num;
+        Fraction ret = T[Tree[treeNodeHash[c]].id].num;
+        if (T[Tree[treeNodeHash[c]].id].funcFlag) {
+            ret = T[Tree[treeNodeHash[c]].id].func->calc(ret);
+        }
+        return ret;
     }
     Fraction a = calcTree(c << 1), b = calcTree(c << 1 | 1);
     Fraction ret = calc(a, b, T[Tree[treeNodeHash[c]].id].op);
+    if (T[Tree[treeNodeHash[c]].id].funcFlag) {
+        ret = T[Tree[treeNodeHash[c]].id].func->calc(ret);
+    }
     // printf("%d:%f%c%f=%f\n", c, (double)a, T[Tree[c].id].op->operatorChar, (double)b, (double)ret);
     return ret;
 }
@@ -217,14 +274,14 @@ void resetCalcTree() {
 
 class CalcRequest {
 public:
-    std::string exp;
+    std::wstring exp;
     Fraction previousResult;
-    CalcRequest(std::string e, Fraction p) {
+    CalcRequest(std::wstring e, Fraction p) {
         exp = e;
         previousResult = p;
     }
     CalcRequest() {
-        exp = "";
+        exp = L"";
         previousResult = Fraction(0, 1);
     }
     friend bool operator<(const CalcRequest a, const CalcRequest b) {
