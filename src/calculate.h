@@ -9,6 +9,10 @@
 const int T_SIZE = 1e5 + 10;
 const int BITSET_SIZE = 128;
 
+// Some New Function
+// or sth
+// ...
+
 std::map<wchar_t, const Operator*> charToOp;
 std::map<wchar_t, const Function*> charToFunc;
 std::map<wchar_t, const Constant*> charToConst;
